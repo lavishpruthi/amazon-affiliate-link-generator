@@ -1,11 +1,5 @@
 import React, { useEffect, useState } from "react";
 
-// Single-file React app (App.jsx)
-// - Admin mode protected by a simple password
-// - Paste Amazon product links to auto-generate affiliate links and create cards
-// - Cards persist to localStorage
-// - Edit/delete/copy card actions
-
 const PLACEHOLDER_IMAGE = "https://via.placeholder.com/400x300?text=Product+Image";
 
 export default function App() {
@@ -26,7 +20,7 @@ export default function App() {
   useEffect(() => localStorage.setItem("cards", JSON.stringify(cards)), [cards]);
   useEffect(() => localStorage.setItem("storeId", storeId), [storeId]);
 
-  // Robust ASIN extraction for common Amazon URL patterns
+  // Extract ASIN from Amazon URL
   const extractASIN = (raw) => {
     try {
       const url = new URL(raw.trim());
@@ -36,7 +30,7 @@ export default function App() {
         /\/gp\/product\/([A-Z0-9]{10})/i,
         /\/gp\/aw\/d\/([A-Z0-9]{10})/i,
         /\/product\/([A-Z0-9]{10})/i,
-        /\/([A-Z0-9]{10})(?:[/?]|$)/i, // fallback: last 10-char token in path
+        /\/([A-Z0-9]{10})(?:[/?]|$)/i,
       ];
       for (const re of patterns) {
         const m = p.match(re);
@@ -48,6 +42,7 @@ export default function App() {
     }
   };
 
+  // Build affiliate link from ASIN
   const getAffiliateLinkFromAsin = (rawUrl, asin) => {
     try {
       const url = new URL(rawUrl.trim());
@@ -61,13 +56,22 @@ export default function App() {
     }
   };
 
+  // Generate affiliate link
   const generate = () => {
-    const asin = extractASIN(inputUrl);
-    if (!asin) return alert("Could not detect ASIN. Please paste a full Amazon product URL (it must contain the product code).");
-    const link = getAffiliateLinkFromAsin(inputUrl, asin);
-    if (!link) return alert("Couldn't build affiliate link from URL.");
-    setAffiliateLink(link);
-  };
+  const url = inputUrl.trim();
+  if (!url) return alert("Please enter a URL.");
+
+  let affiliateUrl = url;
+
+  // If the URL already has query parameters
+  if (url.includes("?")) {
+    affiliateUrl += `&tag=${encodeURIComponent(storeId)}`;
+  } else {
+    affiliateUrl += `?tag=${encodeURIComponent(storeId)}`;
+  }
+
+  setAffiliateLink(affiliateUrl);
+};
 
   const pasteFromClipboard = async () => {
     try {
@@ -88,21 +92,19 @@ export default function App() {
   };
 
   const addCard = () => {
-  if (!affiliateLink) return alert("Generate affiliate link first.");
-  const asin = extractASIN(inputUrl);
-  const newCard = {
-    id: Date.now(),
-    asin: asin || "",
-    title: `Product ${asin || ""}`,
-    link: affiliateLink,
+    if (!affiliateLink) return alert("Generate affiliate link first.");
+    const asin = extractASIN(inputUrl);
+    const newCard = {
+      id: Date.now(),
+      asin: asin || "",
+      title: `Product ${asin || ""}`,
+      link: affiliateLink,
+      image: PLACEHOLDER_IMAGE,
+    };
+    setCards((s) => [newCard, ...s]);
+    setInputUrl("");
+    setAffiliateLink("");
   };
-  setCards((s) => [newCard, ...s]);
-  setInputUrl("");
-  setAffiliateLink("");
-};
-
-
-  
 
   const startEdit = (card) => {
     setEditingId(card.id);
@@ -111,7 +113,13 @@ export default function App() {
   };
 
   const saveEdit = (id) => {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, title: editTitle || c.title, image: editImage || PLACEHOLDER_IMAGE } : c)));
+    setCards((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, title: editTitle || c.title, image: editImage || PLACEHOLDER_IMAGE }
+          : c
+      )
+    );
     setEditingId(null);
     setEditTitle("");
     setEditImage("");
@@ -126,17 +134,26 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: "#f2f2f2", fontFamily: "Arial, Helvetica, sans-serif", padding: 24 }}>
       <h1 style={{ textAlign: "center", color: "#232f3e" }}>🛒 Amazon Affiliate Hub</h1>
 
-      {/* Admin controls */}
       <div style={{ maxWidth: 820, margin: "18px auto" }}>
         <div style={{ background: "white", padding: 20, borderRadius: 12, boxShadow: "0 6px 18px rgba(0,0,0,0.08)" }}>
           <h2 style={{ marginTop: 0, color: "#232f3e" }}>Affiliate Link Generator</h2>
 
           <label style={{ display: "block", fontSize: 13, marginBottom: 6 }}>Store / Affiliate ID</label>
-          <input value={storeId} onChange={(e) => setStoreId(e.target.value)} placeholder="yourtag-21" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ddd", marginBottom: 12 }} />
+          <input
+            value={storeId}
+            onChange={(e) => setStoreId(e.target.value)}
+            placeholder="yourtag-21"
+            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ddd", marginBottom: 12 }}
+          />
 
           <label style={{ display: "block", fontSize: 13, marginBottom: 6 }}>Amazon product link</label>
           <div style={{ display: "flex", gap: 8 }}>
-            <input value={inputUrl} onChange={(e) => setInputUrl(e.target.value)} placeholder="Paste product URL here" style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #ddd" }} />
+            <input
+              value={inputUrl}
+              onChange={(e) => setInputUrl(e.target.value)}
+              placeholder="Paste product URL here"
+              style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+            />
             <button onClick={pasteFromClipboard} style={{ background: "#232f3e", color: "white", border: "none", padding: "10px 14px", borderRadius: 8 }}>Paste</button>
           </div>
 
@@ -156,22 +173,17 @@ export default function App() {
             </div>
           )}
 
-          {/* Admin login area */}
-          
-
           <div style={{ marginTop: 12, fontSize: 12, color: "#555" }}>
-            Tip: paste a normal Amazon product URL (it must include the product code like /dp/B0FGVQBNSB). After generating, click <strong>➕ Add as Card</strong> to create a visible product card.
+            Tip: paste a normal Amazon product URL (it must include the product code like /dp/B0FGVQBNSB). For short links like amzn.to, first expand them in the browser.
           </div>
         </div>
       </div>
 
-      {/* Cards Grid (visible to everyone) */}
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <h2 style={{ color: "#232f3e" }}>🔥 Featured Deals</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 18 }}>
           {cards.map((card) => (
             <div key={card.id} style={{ background: "white", borderRadius: 12, padding: 12, boxShadow: "0 8px 24px rgba(0,0,0,0.06)", position: "relative" }}>
-
               {editingId === card.id ? (
                 <div>
                   <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Title" style={{ width: "100%", padding: 8, marginBottom: 8, borderRadius: 6, border: "1px solid #ddd" }} />
@@ -189,8 +201,8 @@ export default function App() {
                     <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                       <a href={card.link} target="_blank" rel="noopener noreferrer" style={{ background: "#ff9900", color: "#111", padding: "8px 12px", borderRadius: 8, fontWeight: 700, textDecoration: "none" }}>Buy Now →</a>
                       <button onClick={() => copyToClipboard(card.link)} style={{ background: "#0066c0", color: "white", border: "none", padding: "8px 12px", borderRadius: 8 }}>Copy</button>
-                      { <button onClick={() => startEdit(card)} style={{ background: "#232f3e", color: "white", border: "none", padding: "8px 12px", borderRadius: 8 }}>Edit</button>}
-                      {<button onClick={() => deleteCard(card.id)} style={{ background: "#d9534f", color: "white", border: "none", padding: "8px 12px", borderRadius: 8 }}>Delete</button>}
+                      <button onClick={() => startEdit(card)} style={{ background: "#232f3e", color: "white", border: "none", padding: "8px 12px", borderRadius: 8 }}>Edit</button>
+                      <button onClick={() => deleteCard(card.id)} style={{ background: "#d9534f", color: "white", border: "none", padding: "8px 12px", borderRadius: 8 }}>Delete</button>
                     </div>
                   </div>
                 </>
@@ -200,7 +212,7 @@ export default function App() {
 
           {cards.length === 0 && (
             <div style={{ gridColumn: "1/-1", textAlign: "center", padding: 40, color: "#666" }}>
-              No cards yet — login as admin to add product cards by pasting Amazon product links.
+              No cards yet — add product cards by pasting Amazon product links.
             </div>
           )}
         </div>
